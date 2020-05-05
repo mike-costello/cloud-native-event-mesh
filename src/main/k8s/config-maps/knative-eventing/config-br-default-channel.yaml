@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-br-default-channel
+  namespace: knative-eventing
+data:
+  # Configuration for defaulting channels that do not specify CRD implementations.
+  channelTemplateSpec: |
+      apiVersion: messaging.knative.dev/v1alpha1
+      kind: KafkaChannel
+      spec:
+        numPartitions: 3
+        replicationFactor: 1

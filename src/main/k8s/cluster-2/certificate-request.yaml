@@ -1,0 +1,9 @@
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
+metadata:
+  name: cloud2-inter-router-tls
+spec:
+  commonName: cloud2-router-mesh.cloud-2.openshift.com
+  issuerRef:
+    name: cloud1-router-mesh-inter-router-ca
+  secretName: cloud2-inter-router-tls

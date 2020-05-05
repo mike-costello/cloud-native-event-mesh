@@ -1,0 +1,35 @@
+# PLEASE NOTE!!!
+#
+# FIXME: mcostell This source will not work as constructed. There is currently no way to inject a connection factory 
+# into the camel component via the use of this crd that I am aware of 
+#
+# TODO: mcostell 
+#
+# List of available Apache Camel components: https://camel.apache.org/components/latest/
+#
+apiVersion: sources.eventing.knative.dev/v1alpha1
+kind: CamelSource
+metadata:
+  name: camel-amqp-source
+spec:
+  source:
+    # To increase throughput, you can (optionally) read using multiple pods in parallel
+    integration:
+     replicas: 3
+    flow:
+      from:
+        # amqp link to make with qdr 
+        uri: amqp:queue:test.dbevents
+        parameters:
+          # URL of the MQTT source
+          brokerUrl: amqps://cloud1-router-mesh.cloud-1:5672
+          # A unique client ID for the source
+          clientId: amqp-knative-bridge
+        steps:
+          - log:
+              message: "Forwarding: ${body}"
+  sink:
+    ref:
+      apiVersion: messaging.knative.dev/v1alpha1
+      kind: Broker
+      name: default

@@ -1,0 +1,18 @@
+apiVersion: interconnectedcloud.github.io/v1alpha1
+kind: Interconnect
+metadata:
+  name: cloud1-router-mesh
+spec:
+   sslProfiles:
+   - name: inter-router
+     credentials: cluster-wide-tls
+     caCert: cluster-wide-tls
+   deploymentPlan: 
+      role: interior 
+      size: 1
+      placement: AntiAffinity
+   interRouterListener: 
+      sslProfile: cloud1-router-tls
+      expose: false
+      authenticatePeer: false
+      port: 55671

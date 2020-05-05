@@ -1,0 +1,30 @@
+apiVersion: interconnectedcloud.github.io/v1alpha1
+kind: Interconnect
+metadata:
+  name: edge-routers
+spec:
+  sslProfiles:
+   - name: edge-router-tls
+     credentials: edge-router-mesh-tls
+     caCert: edge-router-mesh-tls
+  deploymentPlan:
+    role: edge
+    placement: AntiAffinity
+  edgeConnectors:  
+    - host: cloud1-router-mesh.cloud-1
+      port: 45672
+      name: cloud1-edge-connector
+    - host: cloud2-router-mesh.cloud-2
+      port: 45672
+      name: cloud2-edge-connector
+  listeners: 
+    - sslProfile: edge-router-tls
+      authenticatePeer: false
+      expose: true
+      http: false
+      port: 5671
+  addresses:
+    - prefix: test
+      distribution: multicast
+      enableFallback: true
+      

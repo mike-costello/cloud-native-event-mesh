@@ -1,0 +1,15 @@
+apiVersion: interconnectedcloud.github.io/v1alpha1
+kind: Interconnect
+metadata:
+  name: cloud2-router-mesh
+spec:
+  sslProfiles:
+  - name: inter-cluster-tls
+    credentials: cloud2-inter-router-tls
+    caCert: cloud2-inter-router-tls
+  interRouterConnectors:
+  - #host: cloud1-router-mesh-55671-cloudnativeintegration.apps-crc.testing
+    host: cloud1-router-mesh.cloud-1
+    port: 55671
+    verifyHostname: false
+    sslProfile: inter-cluster-tls
