@@ -94,9 +94,11 @@ Knative Eventing provides functionality around our Cloud Event abstraction and f
 
 To install Knative Eventing we need to perform the following steps (with a cluster admin user): 
 * Create the knative-eventing namespace 
+
 ```
 oc create namespace knative-eventing
 ```
+
 Upon creation of the namespace, we will want to create the knative eventing operators by applying the following cr ![Knative Eventing CR](/src/main/k8s/knative-eventing/knative-eventing-cr.yaml)
 
 In our case, as we'll have need later, we'll install the Multi Tenant Channel Based Broker as our default Knative Eventing Broker implementation: 
@@ -109,7 +111,7 @@ metadata:
   namespace: knative-eventing
 spec:
   defaultBrokerClass: MTChannelBasedBroker
-``` 
+```
 
 Upon applying this yaml, something similar to this should be true: 
 
@@ -178,15 +180,58 @@ channels                              ch               messaging.knative.dev    
 inmemorychannels                      imc              messaging.knative.dev                 true         InMemoryChannel
 kafkachannels                         kc               messaging.knative.dev                 true         KafkaChannel
 subscriptions                         sub              messaging.knative.dev                 true         Subscription
-``` 
+```
 
 If we have gotten this far we have most of our infrastructure assembled from an operator perspective and now its time to being installing our concrete implementation. 
 
 ### Installing the Demo 
 
-At this point we our operators are installed and we have mostly configured our environment; however, we still have a few house keeping tasks to take care of: 
+At this point our operators are installed and we have mostly configured our environment; however, we still have a few house keeping tasks to take care of: 
 * We need to create and install a trust store so that we may communicate to and between clusters in a secure fashion 
 * We need to ensure proper trust and authority is distributed to the correct places in our cluster 
 
 ### Using the AMQ Certificate Manager Operator 
-  
+
+We will use the [cert-manager](https://cert-manager.io) operator that we've previously provisioned to issue certificates that we'll need to wire secure connections across the cluster. 
+
+#### Creating a CA to use across the cluster 
+
+For our puroposes we will create a Certificate Authority using OpenSSL. Initially, the following command should be issued to generate the private key for our CA
+
+```
+openssl  genrsa -des3 -out cloudEventMeshDemoCA.key 2048
+```
+OpenSSL will prompt for a passphrase. It is recommended to use a passphrase even in a development environment, and especially when cluster resources may be accessible from outside of the cluster. 
+
+We'll use the key to create a root certificate that will act as our certificate authority: 
+
+```
+openssl req -x509 -new -nodes -key cloudEventMeshDemoCA.key -sha256 -days 1825 -out cloudEventMeshDemoCA.crt
+```
+
+At this point, you will be asked for a passphrase for again, and as always, it is apropos to use one and not skip this step. While creating this CA OpenSSL will ask for OU's, DN's, etc., and it may be important to use meaningful values for these as it may be required during later configuration. 
+
+Upon completing this process, we will now have an available CA to sign with, and we'll use the AMQ distribution of the certificate manager to establish our CA as a certificate issuer across the cluster. 
+
+Initially, let's create a key pair secret out of our CA private key and root cert, and let's place them in a namespace called "cloud-event-mesh-demo": 
+
+```
+oc create namespace cloud-event-mesh-demo 
+
+oc create secret generic cloud-native-event-mesh-demo-ca-pair --from-file=ca.crt=./cloudEventMeshDemoCA.crt --from-file=ca.key=./cloudEventMeshDemoCA.key
+
+```
+Now that we have created our CA keypair secret, let's create a certificate manager issuer that uses our CA: 
+
+```
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Issuer
+metadata:
+  name: cloud-native-event-mesh-demo-cert-issuer
+  namespace: cloud-event-mesh-demo
+spec:
+  ca:
+    secretName: cloud-native-event-mesh-demo-ca-pair
+
+```
+Now 

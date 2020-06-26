@@ -1,0 +1,14 @@
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
+metadata:
+  name: cloud-event-mesh-demo-ca
+spec:
+  secretName: cloud-event-mesh-demo-ca
+  commonName: openshift.com
+  issuerRef:
+    name: cloud-event-mesh-demo-ca-issuer
+    kind: Issuer
+  dnsNames: 
+     - openshift.com
+     - eipractice.com
+     - opentlc.com
