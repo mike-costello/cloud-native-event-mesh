@@ -4,4 +4,4 @@ metadata:
   name: cloud-native-event-mesh-demo-cert-issuer
 spec:
   ca:
-    secretName: cloud-native-event-mesh-demo-ca-pair
+    secretName: cloud-native-event-mesh-ca

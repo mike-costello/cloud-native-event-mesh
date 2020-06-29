@@ -184,7 +184,7 @@ subscriptions                         sub              messaging.knative.dev    
 
 If we have gotten this far we have most of our infrastructure assembled from an operator perspective and now its time to being installing our concrete implementation. 
 
-### Installing the Demo 
+## Installing the Demo 
 
 At this point our operators are installed and we have mostly configured our environment; however, we still have a few house keeping tasks to take care of: 
 * We need to create and install a trust store so that we may communicate to and between clusters in a secure fashion 
@@ -213,25 +213,149 @@ At this point, you will be asked for a passphrase for again, and as always, it i
 
 Upon completing this process, we will now have an available CA to sign with, and we'll use the AMQ distribution of the certificate manager to establish our CA as a certificate issuer across the cluster. 
 
-Initially, let's create a key pair secret out of our CA private key and root cert, and let's place them in a namespace called "cloud-event-mesh-demo": 
+For convenience sake, we have included a secret in this demo that we should apply to where our certificate manager operator lives (in our case the project *openshift-operators*)
 
 ```
-oc create namespace cloud-event-mesh-demo 
-
-oc create secret generic cloud-native-event-mesh-demo-ca-pair --from-file=ca.crt=./cloudEventMeshDemoCA.crt --from-file=ca.key=./cloudEventMeshDemoCA.key
-
+oc apply -f ./src/main/k8s/CA/cloud/cloud-native-event-mesh-ca-secret.yaml
 ```
+This could also be accomplished by creating a secret from the the CA private and public key created above. 
+
 Now that we have created our CA keypair secret, let's create a certificate manager issuer that uses our CA: 
 
 ```
 apiVersion: certmanager.k8s.io/v1alpha1
-kind: Issuer
+kind: ClusterIssuer
 metadata:
   name: cloud-native-event-mesh-demo-cert-issuer
-  namespace: cloud-event-mesh-demo
 spec:
   ca:
     secretName: cloud-native-event-mesh-demo-ca-pair
 
 ```
-Now 
+
+Upon completing our application of the clusterissuer resource we should have a cluster issuer. 
+
+```py
+oc describe clusterissuer cloud-native-event-mesh-demo-cert-issuer 
+Name:         cloud-native-event-mesh-demo-cert-issuer
+Namespace:    
+Labels:       <none>
+Annotations:  kubectl.kubernetes.io/last-applied-configuration={"apiVersion":"certmanager.k8s.io/v1alpha1","kind":"ClusterIssuer","metadata":{"annotations":{},"name":"cloud-native-event-mesh-demo-cert-issuer","name...
+API Version:  certmanager.k8s.io/v1alpha1
+Kind:         ClusterIssuer
+Metadata:
+  Creation Timestamp:  2020-06-29T17:11:47Z
+  Generation:          2
+  Resource Version:    1485153
+  Self Link:           /apis/certmanager.k8s.io/v1alpha1/clusterissuers/cloud-native-event-mesh-demo-cert-issuer
+  UID:                 90035a64-67c1-4440-9526-a87d1297bfa2
+Spec:
+  Ca:
+    Secret Name:  test-key-pair
+Status:
+  Conditions:
+    Last Transition Time:  2020-06-29T17:11:47Z
+    Message:               Signing CA verified
+    Reason:                KeyPairVerified
+    Status:                True
+    Type:                  Ready
+Events:
+  Type    Reason           Age              From          Message
+  ----    ------           ----             ----          -------
+  Normal  KeyPairVerified  8s (x2 over 8s)  cert-manager  Signing CA verified
+```
+
+We are now free to issue certificates in our cluster. This will be critical to setting up our next steps, the event mesh. 
+
+### Installing the Event Mesh 
+
+Our event mesh will span three different namespaces in our cluster; however, our intention is to logically represent three seperate clusters in our topology. As a result, we will need to create trust in each of these namespaces for the other routers in our event mesh, as, we would not allow insecure communication from cluster to cluster. 
+
+#### Creating the namespaces 
+
+At this point we will wand to create the following namespaces: 
+* *cluster-1* 
+* *cluster-2* 
+* *edge* - this will represent an edge cluster in our topology. While some topologies may not call for an edge cluster, we still want to ensure that we use an *edge router* somewhere in our openshift cluster to ensure that we have connection concentration, a single source of policy application to incoming requests from outside of the cluster, as well as a terminal leaf node for our event mesh graph. 
+
+##### Installing the Interconnect Router in *cluster-1*
+
+As we have use of the operator hub in Openshift 4, we will simply install an Interconnect Operator to the namespace "cluster-1". 
+![Installing the Interconnect Operator in Cluster 1](/images/interconnect-cluster-1.png "Installing the Interconnect Operator to Cluster-1")
+
+At this point, we will be able to start creating some certificates from the cluster issuer we have already established and inevitably configure our Interconnect router for trust. 
+In the namespace "cluster-1", we will provision a certificate for our Interconnect router which we will use to wire up the Interconnect router for trust across inter-router connections. 
+
+*Please Note*: The interconnect router has self-signed a certificate using the certificate manager, and the demonstrated use of certificate management here is only applicable to inter-router conncetions
+
+Initially, we'll lay down the certificate request custom resource: 
+
+```py
+oc apply -f ./src/main/k8s/cloud-1/router/cloud1-certificate-request.yaml
+```
+This certificate request: 
+
+```yaml
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
+metadata:
+  name: cluster-wide-tls
+spec:
+  secretName: cluster-wide-tls
+  commonName: openshift.com
+  issuerRef:
+    name: cloud-native-event-mesh-demo-cert-issuer
+    kind: ClusterIssuer
+  dnsNames: 
+     - openshift.com
+     - eipractice.com
+     - opentlc.com
+
+```
+
+Will leverage the certificate manager to create a secret in the cluter referred to as *"cluster-wide-tls"* which holds the CA certificate, private key, and other things to ensure trust as issued by the ClusterIssuer we have created above. 
+
+Upon issuing the certificate, it is now time to apply our Interconnect router custom resource for the cluster-1 namespace: 
+
+```
+oc apply -f ./src/main/k8s/cloud-1/router/cloud1-mesh-router.yaml 
+```
+
+This enables a few features as laid out by the Interconnect custom resource: 
+
+```
+apiVersion: interconnectedcloud.github.io/v1alpha1
+kind: Interconnect
+metadata:
+  name: cloud1-router-mesh
+spec:
+   sslProfiles:
+   - name: inter-router
+     credentials: cluster-wide-tls
+     caCert: cluster-wide-tls
+   deploymentPlan: 
+      role: interior 
+      size: 1
+      placement: AntiAffinity
+   interRouterListener: 
+      sslProfile: cloud1-router-tls
+      expose: false
+      authenticatePeer: false
+      port: 55671
+```
+
+This creates an SSL Profile based on our CA certificate as issued to us by the cluster issuer as well as establishes an interRouterListener backed by this SSL Profile. The router will also configure other things by default, and with self-signed security, such as: 
+* A default AMQP listener secured by a *self-signed* certificate
+* Metrics and management capabilities 
+* A means for Prometheus or other ***AMP*** technologies to observe the event mesh router as well as the link attachments that event peers make over the event mesh 
+
+At this point, in cluster-1 we will have both an event mesh router and the Interconnect operator in our *"cluster-1"* namespace: 
+
+```
+[mcostell@work router]$ oc get pods -w -n cluster-1
+NAME                                    READY     STATUS    RESTARTS   AGE
+cloud1-router-mesh-7f698d8c65-wpnx7     1/1       Running   0          13m
+interconnect-operator-56b7884d4-6j4jl   1/1       Running   0          5h
+
+``` 
+
