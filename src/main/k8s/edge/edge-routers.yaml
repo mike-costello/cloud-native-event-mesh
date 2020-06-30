@@ -5,26 +5,21 @@ metadata:
 spec:
   sslProfiles:
    - name: edge-router-tls
-     credentials: edge-router-mesh-tls
-     caCert: edge-router-mesh-tls
+     credentials: cluster-wide-tls
+     caCert: cluster-wide-tls
   deploymentPlan:
     role: edge
     placement: AntiAffinity
   edgeConnectors:  
-    - host: cloud1-router-mesh.cloud-1
+    - host: cloud1-router-mesh.cluster-1.svc
       port: 45672
       name: cloud1-edge-connector
-    - host: cloud2-router-mesh.cloud-2
+    - host: cloud2-router-mesh.cluster-2.svc
       port: 45672
       name: cloud2-edge-connector
   listeners: 
-    - sslProfile: edge-router-tls
+    - sslProfile: cluster-wide-tls
       authenticatePeer: false
       expose: true
       http: false
       port: 5671
-  addresses:
-    - prefix: test
-      distribution: multicast
-      enableFallback: true
-      

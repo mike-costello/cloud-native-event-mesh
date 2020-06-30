@@ -357,5 +357,228 @@ NAME                                    READY     STATUS    RESTARTS   AGE
 cloud1-router-mesh-7f698d8c65-wpnx7     1/1       Running   0          13m
 interconnect-operator-56b7884d4-6j4jl   1/1       Running   0          5h
 
-``` 
+ oc get interconnects 
+NAME                 AGE
+cloud1-router-mesh   17m
+```
+We can also introspect the router via oc exec commands: 
+
+```
+[mcostell@work router]$ oc exec cloud1-router-mesh-7f698d8c65-wpnx7 -i -t -- qdstat -g
+2020-06-29 23:23:49.882216 UTC
+cloud1-router-mesh-7f698d8c65-wpnx7
+
+Router Statistics
+  attr                             value
+  ========================================================================================
+  Version                          Red Hat AMQ Interconnect 1.8.0 (qpid-dispatch 1.12.0)
+  Mode                             interior
+  Router Id                        cloud1-router-mesh-7f698d8c65-wpnx7
+  Worker Threads                   4
+  Uptime                           000:00:22:17
+  VmSize                           497 MiB
+  Area                             0
+  Link Routes                      0
+  Auto Links                       0
+  Links                            2
+  Nodes                            0
+  Addresses                        11
+  Connections                      1
+  Presettled Count                 0
+  Dropped Presettled Count         0
+  Accepted Count                   24
+  Rejected Count                   0
+  Released Count                   0
+  Modified Count                   0
+  Deliveries Delayed > 1sec        0
+  Deliveries Delayed > 10sec       0
+  Deliveries Stuck > 10sec         0
+  Deliveries to Fallback           0
+  Links Blocked                    0
+  Ingress Count                    24
+  Egress Count                     23
+  Transit Count                    0
+  Deliveries from Route Container  0
+  Deliveries to Route Container    0
+
+```
+##### Installing the Interconnect Router in *cluster-2*
+Now that we have an event mesh router in *cluster-1*, we will link routers together to form an event mesh between *cluster-1* and *cluster-2*. 
+*Please Note* - the intention of this logical delineation is to represent 2 seperate clusters. In practice, *interior event mesh* routers would bind remote clusters together 
+
+The process of enabling inter-router connections between event mesh routers in namespaces *cluster-1* and *cluster-2* is similar to the provisioning that was required for the *cluster-1* event mesh router. 
+
+Initially, we want to install the *Red Hat - Interconnect Operator* in the namespace *cluster-2*. As *cluster-2* will also issue its certificates from the *cluster-issuer* provisioned previously in the demo, upon installation of the Interconnect Operator, we will provision a CA certificate for *cluster-2* via a certificate request from the *ClusterIssuer*. 
+
+```py 
+oc apply -f src/main/k8s/cloud-2/router/cloud2-certificate-request.yaml
+```
+
+This certificate request: 
+
+```py 
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
+metadata:
+  name: cluster-wide-tls
+spec:
+  secretName: cluster-wide-tls
+  commonName: openshift.com
+  issuerRef:
+    name: cloud-native-event-mesh-demo-cert-issuer
+    kind: ClusterIssuer
+  dnsNames: 
+     - openshift.com
+     - eipractice.com
+     - opentlc.com
+```
+
+Will again provision our CA into a secret into the cluster named "cluster-wide-tls". 
+
+Upon the certificate manager cluster issuer issuing a CA into *cluster-2*, we can lay down the Interconnect resource that will enable our *cluster-1* and *cluster-2* event meshing. 
+
+```py
+oc apply -f src/main/k8s/cloud-2/router/cloud2-certificate-request.yaml
+```
+The router provisioned takes mostly default values for the Interconnect configuration; however, does create an interior router connection to the event mesh router in *cluster-1*: 
+
+```py 
+apiVersion: interconnectedcloud.github.io/v1alpha1
+kind: Interconnect
+metadata:
+  name: cloud2-router-mesh
+spec:
+  sslProfiles:
+  - name: inter-cluster-tls
+    credentials: cluster-wide-tls
+    caCert: cluster-wide-tls
+  interRouterConnectors:
+  - host: cloud1-router-mesh.cluster-1.svc
+    port: 55671
+    verifyHostname: false
+    sslProfile: inter-cluster-tls
+```
+
+Upon succesful provisioning of the router in *cluster-2* we should be able to see a successfull interior router connection between the routers in *cluster-1* and *cluster-2*:
+
+```py 
+oc exec cloud2-router-mesh-d566476ff-msdrr -i -t -- qdstat -c 
+2020-06-29 23:37:04.652856 UTC
+cloud2-router-mesh-d566476ff-msdrr
+
+Connections
+  id  host                                    container                             role          dir  security                                authentication  tenant  last dlv      uptime
+  =================================================================================================================================================================================================
+  2   cloud1-router-mesh.cluster-1.svc:55671  cloud1-router-mesh-7f698d8c65-wpnx7   inter-router  out  TLSv1/SSLv3(DHE-RSA-AES256-GCM-SHA384)  x.509                   000:00:00:00  000:00:00:54
+  9   127.0.0.1:33562                         ae807937-90d0-44d7-8f7b-afdc14f5c47a  normal        in   no-security                             no-auth                 000:00:00:00  000:00:00:00
+```
+
+##### Installing the Edge Interconnect Router
+At this point we have a mesh of Interconnect routers in *cluster-1* and *cluster-2*; however, to properly be able to scale our router network and provide a connection concentrator for our eventing applications, we will want to establish a member of our event mesh to have the role of "edge" in our cluster. Edge routers act as connection concentrators for messaging applications. Each edge router maintains a single uplink connection to an interior router, and messaging applications connect to the edge routers to send and receive messages.
+
+Initially, we will to create a namespace named ***"edge"***. ***Please Note***: in practice, our edge router would likely live in a seperate cluster meant to handle edge use cases, and would be seperate from *cluster-1* and *cluster-2*. 
+
+Upon succesfull creation of the namespace, it is neccessarry to install the Interconnect Operator into this namespace. This will allow us to provision our *edge* router resource. 
+
+Initially, as with our other logical *clusters* we will provision our edge namespace with a CA certificate: 
+
+```py
+oc apply -f src/main/k8s/edge/edge-certificate-request.yaml
+```
+
+Upon creating our *cluster-wide-tls* secret in the namespace, we'll provision our Interconnect Router which will have uplinks to both *cluster-1* and *cluster-2*: 
+
+```py 
+oc apply -f src/main/k8s/edge/edge-routers.yaml
+```
+
+This will provision our *edge* event mesh router, to perform a role as a terminal node in our event mesh. 
+
+```py
+apiVersion: interconnectedcloud.github.io/v1alpha1
+kind: Interconnect
+metadata:
+  name: edge-routers
+spec:
+  sslProfiles:
+   - name: edge-router-tls
+     credentials: cluster-wide-tls
+     caCert: cluster-wide-tls
+  deploymentPlan:
+    role: edge
+    placement: AntiAffinity
+  edgeConnectors:  
+    - host: cloud1-router-mesh.cloud-1
+      port: 45672
+      name: cloud1-edge-connector
+    - host: cloud2-router-mesh.cloud-2
+      port: 45672
+      name: cloud2-edge-connector
+  listeners: 
+    - sslProfile: cluster-wide-tls
+      authenticatePeer: false
+      expose: true
+      http: false
+      port: 5671
+```
+
+If we were to peruse the Interconnect console for one of our clusters, we would be able to see our two interior routers fronted by a single edge router: 
+![Initial Event Mesh Topology](/images/event-mesh-initial-topology.png)
+
+###Installing the Event Bus
+
+***Cloud Native Integration*** creates an event mesh through which event emitters and receivers are able to negotiate with each other, get guarantees around delivery, and ensure proper communication flow via Interconnects wire level flow control capabilities. 
+
+While the *event mesh* serves to provide a communications control plane for event emitters and receivers, through which event level qos can be applied to its relevant use cases, and a reliable graph of receivers for emitted events, ***Cloud Native Integration*** introduces a complementary persistent event bus, as an event sink for event stream processing and integration from the event mesh. This event bus provides a persistent source of *truth* for event stream processors, and allows event receivers to take advantage of platform capabilities such as elasticity, contractual communication, and extend those capabilities into serverless capabilities such as *scaling to zero* and other highly elastic behaviour. 
+
+To accomplish this ***Cloud Native Integration*** relies on *Knative Eventing*, and *Knative Serving* from the *Openshift Serverless* Operator that we deployed earlier. 
+
+As "Knative Eventing" proposes a pub-sub architecture with per namespace Brokers and subscriptions as described by:
+![Knative Broker Triggers](/images/broker-trigger-overview.svg)
+ 
+It will be neccessarry to provision a persistent source of truth for our Knative event brokers. ***Cloud Native Integration*** proposes the use of AMQ Streams as this persistent source of truth as it offers two features that uniquely assist in our pub-sub abstraction: 
+* A co-ordinated distributed log that replicates across distinct physical parts of an Openshift cluster 
+* A means of providing distributed log partitions to ephemeral consumer groups via the Knative channels abstraction and a Kafka Topic implementation 
+
+As the *Integrations* that handle our events consume from our underlying event bus via Knative subscriptions to Knative event channels, AMQ Streams provides a *cloud native* means to persist these events: 
+![Knative Broker Channels](/images/control-plane.png)
+
+#### Provisioning AMQ Streams
+
+For our use case in a single cluster, we will simply provision a single AMQ Streams cluster for both *cluster-1* and *cluster-2* event bus consumers; however, in practice, it would be apropos to at minimum extend the mult-tenant features of this demo to ensure the use of distinct/multi-tenant physical Kafka clusters. 
+
+As we have already installed the AMQ Streams Operator cluster wide, we will simply create a namespace for our AMQ Streams cluster to live in. Let's call it "amq-streams". 
+
+```py 
+oc create namespace amq-streams
+```
+
+Upon succesful creation of the namespace, we will apply our AMQ Streams custom resource to create an AMQ Streams cluster in the namespace called *"small-event-cluster"*: 
+
+```py
+oc apply -f src/main/k8s/cloud-1/kafka/small-event-cluster.yaml
+```
+
+Upon succesfful creation of our resources, we should see our *"amq-streams"* cluster with some new pods: 
+
+```py
+oc get pods -w -n amq-streams 
+NAME                                                   READY     STATUS    RESTARTS   AGE
+small-event-cluster-entity-operator-7cb59948f7-r22kp   3/3       Running   0          33s
+small-event-cluster-kafka-0                            2/2       Running   1          1m
+small-event-cluster-zookeeper-0                        1/1       Running   0          2m
+small-event-cluster-zookeeper-1                        1/1       Running   0          2m
+small-event-cluster-zookeeper-2                        1/1       Running   0          2m
+```
+
+At this point we have provisioned AMQ Streams but we need to install Knative Eventing and Knative Serving so that AMQ Streams is the backbone of our enterprise service bus abstraction. 
+
+#### Provisioning Knative Serving with the Openshift Serverless Operator 
+As we have already installed the *Openshift Serverless Operator* in a previous step, we are now free to create and configure Knative Serving as a means of abstraction for our serverless enpoint calls. 
+
+Initially, we'll create a *"Knative Serving"* namespace and then provision our simple *Knative Serving* resource: 
+
+```py 
+oc apply -f src/main/k8s/knative-serving/knative-serving-cr.yaml -n knative-serving
+```
 

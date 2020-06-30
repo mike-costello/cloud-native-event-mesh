@@ -1,0 +1,14 @@
+apiVersion: certmanager.k8s.io/v1alpha1
+kind: Certificate
+metadata:
+  name: cluster-wide-tls
+spec:
+  secretName: cluster-wide-tls
+  commonName: openshift.com
+  issuerRef:
+    name: cloud-native-event-mesh-demo-cert-issuer
+    kind: ClusterIssuer
+  dnsNames: 
+     - openshift.com
+     - eipractice.com
+     - opentlc.com

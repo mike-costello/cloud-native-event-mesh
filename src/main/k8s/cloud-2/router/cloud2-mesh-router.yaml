@@ -5,11 +5,10 @@ metadata:
 spec:
   sslProfiles:
   - name: inter-cluster-tls
-    credentials: cloud2-inter-router-tls
-    caCert: cloud2-inter-router-tls
+    credentials: cluster-wide-tls
+    caCert: cluster-wide-tls
   interRouterConnectors:
-  - #host: cloud1-router-mesh-55671-cloudnativeintegration.apps-crc.testing
-    host: cloud1-router-mesh.cloud-1
+  - host: cloud1-router-mesh.cluster-1.svc
     port: 55671
     verifyHostname: false
     sslProfile: inter-cluster-tls
