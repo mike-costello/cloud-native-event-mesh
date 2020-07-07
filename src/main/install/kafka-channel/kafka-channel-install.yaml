@@ -604,7 +604,7 @@ metadata:
 data:
   # Broker URL. Replace this with the URLs for your kafka cluster,
   # which is in the format of my-cluster-kafka-bootstrap.my-kafka-namespace:9092.
-  bootstrapServers: small-event-cluster-kafka-bootstrap.cloud-1:9092
+  bootstrapServers: small-event-cluster-kafka-bootstrap.amq-streams:9092
 
 ---
 # Copyright 20 The Knative Authors

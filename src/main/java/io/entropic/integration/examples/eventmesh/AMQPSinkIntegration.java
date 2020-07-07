@@ -8,7 +8,7 @@ public class AMQPSinkIntegration extends RouteBuilder {
 	@BindToRegistry
 	public javax.jms.ConnectionFactory connectionFactory() {
 		return new org.apache.qpid.jms.JmsConnectionFactory(
-				"amqp://cloud1-router-mesh.cloud-1:5672?transport.trustAll=true&transport.verifyHost=false");
+				"amqp://cloud1-router-mesh.cluster-1:5672?transport.trustAll=true&transport.verifyHost=false");
 	}
 
 	@Override
