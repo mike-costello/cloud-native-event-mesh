@@ -525,7 +525,7 @@ spec:
 If we were to peruse the Interconnect console for one of our clusters, we would be able to see our two interior routers fronted by a single edge router: 
 ![Initial Event Mesh Topology](/images/event-mesh-initial-topology.png)
 
-###Installing the Event Bus
+### Installing the Event Bus
 
 ***Cloud Native Integration*** creates an event mesh through which event emitters and receivers are able to negotiate with each other, get guarantees around delivery, and ensure proper communication flow via Interconnects wire level flow control capabilities. 
 
