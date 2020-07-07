@@ -716,7 +716,7 @@ testing-dbeventaggregate   True                http://testing-dbeventaggregate-k
 testing-dbevents           True                http://testing-dbevents-kn-channel.cluster-1.svc.cluster.local           25m
 ```
 
-####Installing the Event Sink 
+#### Installing the Event Sink 
 As we have previously installed the Red Hat - Camel K Operator, we can leverage Camel-K to run *Apache Camel* based integrations as AMQP based event receivers along our event mesh, and ultimately, act as a sink for our *Knative Eventing* based **event bus**. 
 
 ##### Using the Kamel CLI
