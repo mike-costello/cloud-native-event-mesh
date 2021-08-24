@@ -9,12 +9,16 @@ data:
       brokerClass: MTChannelBasedBroker
       apiVersion: v1
       kind: ConfigMap
-      name: kafka-channel
+      name: config-kafka-channel
       namespace: knative-eventing
     namespaceDefaults:
-      test-tenant:
-        brokerClass: MTChannelBasedBroker
+      newco-tenant:
         apiVersion: v1
         kind: ConfigMap
-        name: imc-channel
-        namespace: knative-eventing
+        name: config-imc-channel
+        namespace: newco-tenant
+      important-tenant:
+        apiVersion: v1
+        kind: ConfigMap
+        name: config-important-tenant-channel
+        namespace: important-tenant 

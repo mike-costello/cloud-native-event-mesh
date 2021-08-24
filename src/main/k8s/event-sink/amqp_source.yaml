@@ -13,17 +13,13 @@ metadata:
   name: camel-amqp-source
 spec:
   source:
-    # To increase throughput, you can (optionally) read using multiple pods in parallel
     integration:
      replicas: 3
     flow:
       from:
-        # amqp link to make with qdr 
         uri: amqp:queue:test.dbevents
         parameters:
-          # URL of the MQTT source
           brokerUrl: amqps://cloud1-router-mesh.cloud-1:5672
-          # A unique client ID for the source
           clientId: amqp-knative-bridge
         steps:
           - log:

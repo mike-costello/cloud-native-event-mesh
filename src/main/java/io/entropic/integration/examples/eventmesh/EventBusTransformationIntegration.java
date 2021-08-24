@@ -8,10 +8,11 @@ public class EventBusTransformationIntegration extends RouteBuilder {
 	public void configure() throws Exception{
 		
 		from("knative:channel/testing-dbevents")
-		.log("**Received message ${body}**")
-		.setBody().simple("${body} processed after consumed by the event bus. Get on the bus!")
-		.to("knative:channel/testing-dbeventaggregate")
-		.log("**sent message to knative channel ${body} **");
+			.id("from-channel-xform")
+			.log("**Received message ${body}**")
+			.setBody().simple("${body} processed after consumed by the event bus. Get on the bus!")
+			.to("knative:channel/testing-dbeventaggregate")
+			.log("**sent message to knative channel ${body} **");
 		
 	}
 }

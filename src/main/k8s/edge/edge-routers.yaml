@@ -3,10 +3,6 @@ kind: Interconnect
 metadata:
   name: edge-routers
 spec:
-  sslProfiles:
-   - name: edge-router-tls
-     credentials: cluster-wide-tls
-     caCert: cluster-wide-tls
   deploymentPlan:
     role: edge
     placement: AntiAffinity
@@ -17,9 +13,3 @@ spec:
     - host: cloud2-router-mesh.cluster-2.svc
       port: 45672
       name: cloud2-edge-connector
-  listeners: 
-    - sslProfile: cluster-wide-tls
-      authenticatePeer: false
-      expose: true
-      http: false
-      port: 5671
